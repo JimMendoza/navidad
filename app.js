@@ -44,6 +44,44 @@ if (caption) {
 }
 document.title = nombreURL ? `Feliz Navidad ${nombreURL}` : "Feliz Navidad";
 
+let estadoTexto = {
+  valor: "",
+  anchoLimite: 0,
+  ratio: 0,
+  tamano: 0,
+  anchoPx: 0,
+};
+
+function calcularTextoResponsivo(texto, tamBaseCss, anchoMaxCss) {
+  const necesita =
+    texto !== estadoTexto.valor ||
+    anchoMaxCss !== estadoTexto.anchoLimite ||
+    ratioPixeles !== estadoTexto.ratio;
+
+  if (!necesita) return estadoTexto;
+
+  let tam = tamBaseCss;
+  const tamMin = 20;
+  let anchoPx = 0;
+
+  while (tam >= tamMin) {
+    contexto.font = `700 ${tam * ratioPixeles}px "Georgia", "Times New Roman", serif`;
+    anchoPx = contexto.measureText(texto).width;
+    if (anchoPx <= anchoMaxCss * ratioPixeles) break;
+    tam -= 2;
+  }
+
+  estadoTexto = {
+    valor: texto,
+    anchoLimite: anchoMaxCss,
+    ratio: ratioPixeles,
+    tamano: tam,
+    anchoPx,
+  };
+
+  return estadoTexto;
+}
+
 const CANTIDAD_NIEVE_BASE = 100;
 const PERFIL_CALIDAD_ALTO = {
   maxDpr: 1.5,
@@ -883,7 +921,14 @@ function bucle(tiempo) {
 
   // Texto final debajo del arbol.
   contexto.save();
-  const tamanoTextoCss = Math.min(64, Math.max(28, innerWidth * 0.055));
+  const tamanoBaseCss = Math.min(64, Math.max(28, innerWidth * 0.055));
+  const anchoMaxTextoCss = innerWidth * 0.9;
+  const infoTexto = calcularTextoResponsivo(
+    textoNavidadFinal,
+    tamanoBaseCss,
+    anchoMaxTextoCss
+  );
+  const tamanoTextoCss = infoTexto.tamano;
   const yTextoCss = Math.min(
     innerHeight - tamanoTextoCss * 1.3,
     yBaseCss + altoArbolCss * 0.1
