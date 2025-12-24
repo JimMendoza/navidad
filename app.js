@@ -42,13 +42,97 @@ if (caption) {
   document.title = nombreURL ? `Feliz Navidad ${nombreURL}` : "Feliz Navidad";
 }
 
-const CANTIDAD_NIEVE = 100;
+const CANTIDAD_NIEVE_BASE = 100;
+const PERFIL_CALIDAD_ALTO = {
+  maxDpr: 1.5,
+  fpsObjetivo: 30,
+  muestreoCurva: 12,
+  maxCola: 20,
+  puntosPorVuelta: 2,
+  muestrasPorTramo: 16,
+  factorSombra: 1,
+  factorNieve: 1,
+};
+const PERFIL_CALIDAD_BAJO = {
+  maxDpr: 1,
+  fpsObjetivo: 24,
+  muestreoCurva: 8,
+  maxCola: 14,
+  puntosPorVuelta: 1,
+  muestrasPorTramo: 10,
+  factorSombra: 0.7,
+  factorNieve: 0.6,
+};
+let perfilActual = PERFIL_CALIDAD_ALTO;
+let maxDpr = PERFIL_CALIDAD_ALTO.maxDpr;
+let fpsObjetivo = PERFIL_CALIDAD_ALTO.fpsObjetivo;
+let intervaloFrame = 1000 / fpsObjetivo;
+let factorSombra = PERFIL_CALIDAD_ALTO.factorSombra;
+let cantidadNieve = CANTIDAD_NIEVE_BASE;
 let anchoCanvas, altoCanvas, ratioPixeles;
 let coposNieve = [];
+let ultimoFrame = 0;
+let ultimoTiempoRendimiento = 0;
+let acumuladorRendimiento = 0;
+let muestrasRendimiento = 0;
+let evaluacionRendimientoActiva = true;
+let necesitaReinicioEstrella = false;
+
+function detectarPerfilInicial() {
+  const memoria = navigator.deviceMemory || 0;
+  const nucleos = navigator.hardwareConcurrency || 0;
+  const esBajo = (memoria && memoria <= 2) || (nucleos && nucleos <= 4);
+  return esBajo ? PERFIL_CALIDAD_BAJO : PERFIL_CALIDAD_ALTO;
+}
+
+function aplicarPerfil(perfil, forzar) {
+  if (!forzar && perfilActual === perfil) return;
+  perfilActual = perfil;
+  maxDpr = perfil.maxDpr;
+  fpsObjetivo = perfil.fpsObjetivo;
+  intervaloFrame = 1000 / fpsObjetivo;
+  factorSombra = perfil.factorSombra;
+  cantidadNieve = Math.max(
+    30,
+    Math.round(CANTIDAD_NIEVE_BASE * perfil.factorNieve)
+  );
+  ultimoFrame = 0;
+  ultimoTiempoRendimiento = 0;
+  acumuladorRendimiento = 0;
+  muestrasRendimiento = 0;
+  evaluacionRendimientoActiva = perfilActual === PERFIL_CALIDAD_ALTO;
+  necesitaReinicioEstrella = true;
+  if (typeof ajustarTamano === "function") {
+    ajustarTamano();
+  }
+}
+
+function evaluarRendimiento(tiempo) {
+  if (!evaluacionRendimientoActiva || perfilActual === PERFIL_CALIDAD_BAJO) {
+    return;
+  }
+  if (!ultimoTiempoRendimiento) {
+    ultimoTiempoRendimiento = tiempo;
+    return;
+  }
+  const delta = tiempo - ultimoTiempoRendimiento;
+  ultimoTiempoRendimiento = tiempo;
+  acumuladorRendimiento += delta;
+  muestrasRendimiento += 1;
+
+  if (acumuladorRendimiento >= 2000) {
+    const fpsPromedio = (muestrasRendimiento * 1000) / acumuladorRendimiento;
+    acumuladorRendimiento = 0;
+    muestrasRendimiento = 0;
+    if (fpsPromedio < fpsObjetivo - 6) {
+      aplicarPerfil(PERFIL_CALIDAD_BAJO, true);
+    }
+  }
+}
 
 function ajustarTamano() {
   // Ajusta el canvas a pixeles reales y reinicia la nieve.
-  ratioPixeles = Math.min(devicePixelRatio || 1, 1.5);
+  ratioPixeles = Math.min(devicePixelRatio || 1, maxDpr);
   anchoCanvas = lienzo.width = Math.floor(innerWidth * ratioPixeles);
   altoCanvas = lienzo.height = Math.floor(innerHeight * ratioPixeles);
   lienzo.style.width = innerWidth + "px";
@@ -56,12 +140,12 @@ function ajustarTamano() {
   iniciarNieve();
 }
 addEventListener("resize", ajustarTamano);
-ajustarTamano();
+aplicarPerfil(detectarPerfilInicial(), true);
 
 /* ------------------ Nieve ------------------ */
 function iniciarNieve() {
   // Crea copos con posicion y velocidad aleatoria.
-  coposNieve = Array.from({ length: CANTIDAD_NIEVE }, () => ({
+  coposNieve = Array.from({ length: cantidadNieve }, () => ({
     x: Math.random() * anchoCanvas,
     y: Math.random() * altoCanvas,
     radio: (Math.random() * 2.1 + 0.6) * ratioPixeles,
@@ -100,7 +184,7 @@ function construirPuntosTrazoArbol(centroX, yArriba, altoArbol) {
   const puntos = [];
   const escalaX = altoArbol / 520;
   const anchoFactor = 1.45;
-  const muestreoCurva = 12;
+  const muestreoCurva = perfilActual.muestreoCurva;
   const tensionCurva = 0; // 0..1, 0 muy curvado, 1 lineal
   const sesgoCentro = 0.01; // positivo curva hacia el centro, negativo hacia afuera
   const factorTension = (1 - tensionCurva) / 2;
@@ -358,7 +442,7 @@ function dibujarEstrella(xCentro, yCentro, radio) {
     trazarEstrella(radioHalo);
     contexto.fillStyle = "#ffe28a";
     contexto.shadowColor = "rgba(255,210,74,.9)";
-    contexto.shadowBlur = blurBase * ratioPixeles;
+    contexto.shadowBlur = blurBase * ratioPixeles * factorSombra;
     contexto.fill();
     contexto.restore();
   };
@@ -389,7 +473,7 @@ function dibujarEstrella(xCentro, yCentro, radio) {
     trazarEstrella(radio);
     contexto.fillStyle = colorRelleno;
     contexto.shadowColor = "rgba(255,210,74,.9)";
-    contexto.shadowBlur = 18 * ratioPixeles;
+    contexto.shadowBlur = 18 * ratioPixeles * factorSombra;
     contexto.fill();
     contexto.lineWidth = grosorBorde * ratioPixeles;
     contexto.strokeStyle = colorBorde;
@@ -424,7 +508,7 @@ function dibujarRegalo(x, y, ancho, alto, color) {
   contexto.save();
   contexto.fillStyle = color;
   contexto.shadowColor = "rgba(0,0,0,.35)";
-  contexto.shadowBlur = 6 * ratioPixeles;
+  contexto.shadowBlur = 6 * ratioPixeles * factorSombra;
   rectanguloRedondeado(x, y, ancho, alto, 10 * ratioPixeles);
   contexto.fill();
 
@@ -478,9 +562,6 @@ function dibujarRegalo(x, y, ancho, alto, color) {
 let inicioAnimacion = performance.now();
 let cajaArbol = null;
 let tiempoActual = 0;
-const FPS_OBJETIVO = 30;
-const INTERVALO_FRAME = 1000 / FPS_OBJETIVO;
-let ultimoFrame = 0;
 
 /* ------------------ Estrella fugaz ------------------ */
 let estrellaFugaz = null;
@@ -491,7 +572,7 @@ function reiniciarEstrellaFugaz() {
     inicioX: -120 * ratioPixeles,
     inicioY: (80 + Math.random() * 120) * ratioPixeles,
     cola: [],
-    maxCola: 20,
+    maxCola: perfilActual.maxCola,
     rutaPuntos: [],
     distancias: [],
     longitudTotal: 0,
@@ -500,6 +581,7 @@ function reiniciarEstrellaFugaz() {
     ancho: null,
     alto: null,
   };
+  necesitaReinicioEstrella = false;
 }
 reiniciarEstrellaFugaz();
 
@@ -529,7 +611,7 @@ function crearRutaAleatoria(xObjetivo, yObjetivo) {
   puntosControl.push([estrellaFugaz.inicioX, estrellaFugaz.inicioY]);
 
   const vueltasRuta = 2;
-  const puntosPorVuelta = 2;
+  const puntosPorVuelta = perfilActual.puntosPorVuelta;
   for (let vuelta = 0; vuelta < vueltasRuta; vuelta++) {
     for (let i = 0; i < puntosPorVuelta; i++) {
       const x = minX + Math.random() * (maxX - minX);
@@ -561,7 +643,7 @@ function crearRutaAleatoria(xObjetivo, yObjetivo) {
   const rutaPuntos = [];
   const distancias = [];
   let longitudTotal = 0;
-  const muestrasPorTramo = 16;
+  const muestrasPorTramo = perfilActual.muestrasPorTramo;
 
   for (let i = 0; i < puntosControl.length - 1; i++) {
     const p0 = puntosControl[Math.max(0, i - 1)];
@@ -608,6 +690,10 @@ function crearRutaAleatoria(xObjetivo, yObjetivo) {
 
 function actualizarEstrellaFugaz(xObjetivo, yObjetivo, progreso) {
   if (!estrellaFugaz) return;
+  if (necesitaReinicioEstrella) {
+    reiniciarEstrellaFugaz();
+    necesitaReinicioEstrella = false;
+  }
 
   const objetivoCambio =
     estrellaFugaz.objetivoX === null ||
@@ -687,7 +773,7 @@ function dibujarEstadoEstrellaFugaz(estado) {
       contexto.save();
       contexto.lineCap = "round";
       contexto.shadowColor = "rgba(255, 210, 74, .7)";
-      contexto.shadowBlur = blurBase * ratioPixeles;
+      contexto.shadowBlur = blurBase * ratioPixeles * factorSombra;
       contexto.strokeStyle = "#ffd24a";
 
       for (let i = 0; i < total - 1; i++) {
@@ -728,7 +814,7 @@ function dibujarTronco(xCentroCss, ySuperiorCss, anchoCss, altoCss, progreso) {
   contexto.strokeStyle = "#8b5a2b";
   contexto.lineWidth = 4 * ratioPixeles;
   contexto.shadowColor = "rgba(0,0,0,.35)";
-  contexto.shadowBlur = 4 * ratioPixeles;
+  contexto.shadowBlur = 4 * ratioPixeles * factorSombra;
   const longitud = Math.PI * radio;
   contexto.setLineDash([longitud]);
   contexto.lineDashOffset = longitud * (1 - avance);
@@ -765,9 +851,10 @@ lienzo.addEventListener("click", (evento) => {
 /* ------------------ Bucle principal ------------------ */
 function bucle(tiempo) {
   requestAnimationFrame(bucle);
-  if (tiempo - ultimoFrame < INTERVALO_FRAME) return;
-  ultimoFrame = tiempo - ((tiempo - ultimoFrame) % INTERVALO_FRAME);
+  if (tiempo - ultimoFrame < intervaloFrame) return;
+  ultimoFrame = tiempo - ((tiempo - ultimoFrame) % intervaloFrame);
 
+  evaluarRendimiento(tiempo);
   tiempoActual = tiempo / 1000;
   contexto.clearRect(0, 0, anchoCanvas, altoCanvas);
 
@@ -825,7 +912,7 @@ function bucle(tiempo) {
     anchoLinea: 7 * ratioPixeles,
     colorTrazo: "#00ff4c",
     colorBrillo: "rgba(0,255,76,.45)",
-    blurBrillo: 10 * ratioPixeles,
+    blurBrillo: 10 * ratioPixeles * factorSombra,
   });
 
   dibujarTronco(
@@ -883,7 +970,7 @@ function bucle(tiempo) {
   contexto.textAlign = "center";
   contexto.textBaseline = "top";
   contexto.shadowColor = "rgba(255,210,74,.6)";
-  contexto.shadowBlur = 12 * ratioPixeles;
+  contexto.shadowBlur = 12 * ratioPixeles * factorSombra;
   contexto.restore();
 
 }
