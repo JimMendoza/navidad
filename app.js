@@ -53,6 +53,16 @@ const PERFIL_CALIDAD_ALTO = {
   factorSombra: 1,
   factorNieve: 1,
 };
+const PERFIL_CALIDAD_MEDIO = {
+  maxDpr: 1.25,
+  fpsObjetivo: 28,
+  muestreoCurva: 10,
+  maxCola: 17,
+  puntosPorVuelta: 2,
+  muestrasPorTramo: 12,
+  factorSombra: 0.85,
+  factorNieve: 0.8,
+};
 const PERFIL_CALIDAD_BAJO = {
   maxDpr: 1,
   fpsObjetivo: 24,
@@ -82,7 +92,12 @@ function detectarPerfilInicial() {
   const memoria = navigator.deviceMemory || 0;
   const nucleos = navigator.hardwareConcurrency || 0;
   const esBajo = (memoria && memoria <= 2) || (nucleos && nucleos <= 4);
-  return esBajo ? PERFIL_CALIDAD_BAJO : PERFIL_CALIDAD_ALTO;
+  const esMedio =
+    (memoria && memoria > 2 && memoria <= 4) ||
+    (nucleos && nucleos > 4 && nucleos <= 6);
+  if (esBajo) return PERFIL_CALIDAD_BAJO;
+  if (esMedio) return PERFIL_CALIDAD_MEDIO;
+  return PERFIL_CALIDAD_ALTO;
 }
 
 function aplicarPerfil(perfil, forzar) {
@@ -100,7 +115,7 @@ function aplicarPerfil(perfil, forzar) {
   ultimoTiempoRendimiento = 0;
   acumuladorRendimiento = 0;
   muestrasRendimiento = 0;
-  evaluacionRendimientoActiva = perfilActual === PERFIL_CALIDAD_ALTO;
+  evaluacionRendimientoActiva = perfilActual !== PERFIL_CALIDAD_BAJO;
   necesitaReinicioEstrella = true;
   if (typeof ajustarTamano === "function") {
     ajustarTamano();
@@ -125,7 +140,11 @@ function evaluarRendimiento(tiempo) {
     acumuladorRendimiento = 0;
     muestrasRendimiento = 0;
     if (fpsPromedio < fpsObjetivo - 6) {
-      aplicarPerfil(PERFIL_CALIDAD_BAJO, true);
+      if (perfilActual === PERFIL_CALIDAD_ALTO) {
+        aplicarPerfil(PERFIL_CALIDAD_MEDIO, true);
+      } else if (perfilActual === PERFIL_CALIDAD_MEDIO) {
+        aplicarPerfil(PERFIL_CALIDAD_BAJO, true);
+      }
     }
   }
 }
