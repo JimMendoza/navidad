@@ -42,13 +42,13 @@ if (caption) {
   document.title = nombreURL ? `Feliz Navidad ${nombreURL}` : "Feliz Navidad";
 }
 
-const CANTIDAD_NIEVE = 220;
+const CANTIDAD_NIEVE = 100;
 let anchoCanvas, altoCanvas, ratioPixeles;
 let coposNieve = [];
 
 function ajustarTamano() {
   // Ajusta el canvas a pixeles reales y reinicia la nieve.
-  ratioPixeles = Math.min(devicePixelRatio || 1, 2);
+  ratioPixeles = Math.min(devicePixelRatio || 1, 1.5);
   anchoCanvas = lienzo.width = Math.floor(innerWidth * ratioPixeles);
   altoCanvas = lienzo.height = Math.floor(innerHeight * ratioPixeles);
   lienzo.style.width = innerWidth + "px";
@@ -100,7 +100,7 @@ function construirPuntosTrazoArbol(centroX, yArriba, altoArbol) {
   const puntos = [];
   const escalaX = altoArbol / 520;
   const anchoFactor = 1.45;
-  const muestreoCurva = 20;
+  const muestreoCurva = 12;
   const tensionCurva = 0; // 0..1, 0 muy curvado, 1 lineal
   const sesgoCentro = 0.01; // positivo curva hacia el centro, negativo hacia afuera
   const factorTension = (1 - tensionCurva) / 2;
@@ -273,24 +273,54 @@ function dibujarTrazoProgreso(puntos, progreso, estilo) {
 
 /* ------------------ Punto brillante que dibuja ------------------ */
 function dibujarLapizBrillante(xLapiz, yLapiz) {
-  contexto.save();
+  const radio = 12 * ratioPixeles;
+  const pulso =
+    0.55 + 0.45 * Math.sin(tiempoActual * 4 + (xLapiz + yLapiz) * 0.01);
+  const puntas = 6;
+  const proporcionInterna = 0.45;
 
-  // Halo grande.
-  contexto.globalAlpha = 0.35;
-  contexto.beginPath();
-  contexto.arc(xLapiz, yLapiz, 18 * ratioPixeles, 0, Math.PI * 2);
-  contexto.fillStyle = "#00ff4c";
-  contexto.shadowColor = "rgba(0,255,76,.75)";
-  contexto.shadowBlur = 30 * ratioPixeles;
+  const trazarEstrellaLapiz = (radioExterno) => {
+    const radioInterno = radioExterno * proporcionInterna;
+    contexto.beginPath();
+    for (let i = 0; i < puntas * 2; i++) {
+      const radioActual = i % 2 === 0 ? radioExterno : radioInterno;
+      const angulo = (Math.PI / puntas) * i;
+      const x = Math.cos(angulo) * radioActual;
+      const y = Math.sin(angulo) * radioActual;
+      if (i === 0) {
+        contexto.moveTo(x, y);
+      } else {
+        contexto.lineTo(x, y);
+      }
+    }
+    contexto.closePath();
+  };
+
+  contexto.save();
+  contexto.translate(xLapiz, yLapiz);
+  contexto.rotate(-Math.PI / 2);
+
+  // Halos amarillos con forma de estrella.
+  contexto.globalAlpha = 0.18 + 0.22 * pulso;
+  trazarEstrellaLapiz(radio * (2.05 + 0.3 * pulso));
+  contexto.fillStyle = "#ffd777";
+  contexto.shadowColor = "rgba(255, 210, 74, .9)";
+  contexto.shadowBlur = 22 * ratioPixeles;
   contexto.fill();
 
-  // Nucleo brillante.
+  contexto.globalAlpha = 0.28 + 0.24 * pulso;
+  trazarEstrellaLapiz(radio * (1.55 + 0.25 * pulso));
+  contexto.fillStyle = "#ffe29a";
+  contexto.shadowColor = "rgba(255, 210, 74, .95)";
+  contexto.shadowBlur = 16 * ratioPixeles;
+  contexto.fill();
+
+  // Estrella principal.
   contexto.globalAlpha = 1;
-  contexto.beginPath();
-  contexto.arc(xLapiz, yLapiz, 4.2 * ratioPixeles, 0, Math.PI * 2);
-  contexto.fillStyle = "#eafff0";
-  contexto.shadowColor = "rgba(0,255,76,.95)";
-  contexto.shadowBlur = 18 * ratioPixeles;
+  trazarEstrellaLapiz(radio);
+  contexto.fillStyle = "#fff2b6";
+  contexto.shadowColor = "rgba(255, 210, 74, .95)";
+  contexto.shadowBlur = 12 * ratioPixeles;
   contexto.fill();
 
   contexto.restore();
@@ -337,13 +367,13 @@ function dibujarEstrella(xCentro, yCentro, radio) {
     0,
     radio * (1.55 + 0.35 * pulso),
     0.22 + 0.18 * pulso,
-    34 + 18 * pulso
+    24 + 12 * pulso
   );
   dibujarHalo(
     Math.PI / puntas,
     radio * (1.3 + 0.28 * pulso),
     0.18 + 0.16 * pulso,
-    26 + 16 * pulso
+    18 + 10 * pulso
   );
 
   contexto.globalAlpha = 1;
@@ -359,7 +389,7 @@ function dibujarEstrella(xCentro, yCentro, radio) {
     trazarEstrella(radio);
     contexto.fillStyle = colorRelleno;
     contexto.shadowColor = "rgba(255,210,74,.9)";
-    contexto.shadowBlur = 28 * ratioPixeles;
+    contexto.shadowBlur = 18 * ratioPixeles;
     contexto.fill();
     contexto.lineWidth = grosorBorde * ratioPixeles;
     contexto.strokeStyle = colorBorde;
@@ -394,7 +424,7 @@ function dibujarRegalo(x, y, ancho, alto, color) {
   contexto.save();
   contexto.fillStyle = color;
   contexto.shadowColor = "rgba(0,0,0,.35)";
-  contexto.shadowBlur = 10 * ratioPixeles;
+  contexto.shadowBlur = 6 * ratioPixeles;
   rectanguloRedondeado(x, y, ancho, alto, 10 * ratioPixeles);
   contexto.fill();
 
@@ -448,6 +478,9 @@ function dibujarRegalo(x, y, ancho, alto, color) {
 let inicioAnimacion = performance.now();
 let cajaArbol = null;
 let tiempoActual = 0;
+const FPS_OBJETIVO = 30;
+const INTERVALO_FRAME = 1000 / FPS_OBJETIVO;
+let ultimoFrame = 0;
 
 /* ------------------ Estrella fugaz ------------------ */
 let estrellaFugaz = null;
@@ -458,7 +491,7 @@ function reiniciarEstrellaFugaz() {
     inicioX: -120 * ratioPixeles,
     inicioY: (80 + Math.random() * 120) * ratioPixeles,
     cola: [],
-    maxCola: 42,
+    maxCola: 20,
     rutaPuntos: [],
     distancias: [],
     longitudTotal: 0,
@@ -496,7 +529,7 @@ function crearRutaAleatoria(xObjetivo, yObjetivo) {
   puntosControl.push([estrellaFugaz.inicioX, estrellaFugaz.inicioY]);
 
   const vueltasRuta = 2;
-  const puntosPorVuelta = 3;
+  const puntosPorVuelta = 2;
   for (let vuelta = 0; vuelta < vueltasRuta; vuelta++) {
     for (let i = 0; i < puntosPorVuelta; i++) {
       const x = minX + Math.random() * (maxX - minX);
@@ -528,7 +561,7 @@ function crearRutaAleatoria(xObjetivo, yObjetivo) {
   const rutaPuntos = [];
   const distancias = [];
   let longitudTotal = 0;
-  const muestrasPorTramo = 24;
+  const muestrasPorTramo = 16;
 
   for (let i = 0; i < puntosControl.length - 1; i++) {
     const p0 = puntosControl[Math.max(0, i - 1)];
@@ -676,9 +709,9 @@ function dibujarEstadoEstrellaFugaz(estado) {
     };
 
     // Capa de brillo amplia.
-    dibujarCola(14, 3, 0.35, 26);
+    dibujarCola(10, 2.5, 0.35, 18);
     // Nucleo brillante mas definido.
-    dibujarCola(6, 1.5, 0.9, 10);
+    dibujarCola(4.5, 1.2, 0.9, 7);
   }
 
   // Dibuja la estrella en la posicion actual.
@@ -695,7 +728,7 @@ function dibujarTronco(xCentroCss, ySuperiorCss, anchoCss, altoCss, progreso) {
   contexto.strokeStyle = "#8b5a2b";
   contexto.lineWidth = 4 * ratioPixeles;
   contexto.shadowColor = "rgba(0,0,0,.35)";
-  contexto.shadowBlur = 6 * ratioPixeles;
+  contexto.shadowBlur = 4 * ratioPixeles;
   const longitud = Math.PI * radio;
   contexto.setLineDash([longitud]);
   contexto.lineDashOffset = longitud * (1 - avance);
@@ -731,6 +764,10 @@ lienzo.addEventListener("click", (evento) => {
 
 /* ------------------ Bucle principal ------------------ */
 function bucle(tiempo) {
+  requestAnimationFrame(bucle);
+  if (tiempo - ultimoFrame < INTERVALO_FRAME) return;
+  ultimoFrame = tiempo - ((tiempo - ultimoFrame) % INTERVALO_FRAME);
+
   tiempoActual = tiempo / 1000;
   contexto.clearRect(0, 0, anchoCanvas, altoCanvas);
 
@@ -782,13 +819,13 @@ function bucle(tiempo) {
     dibujarEstadoEstrellaFugaz(estadoEstrella);
   }
 
-  // Arbol (trazo + posicion del lapiz).
+  // Arbol (trazo).
   const puntos = construirPuntosTrazoArbol(xArbolCss, yArribaCss, altoArbolCss);
-  const lapiz = dibujarTrazoProgreso(puntos, progreso, {
+  dibujarTrazoProgreso(puntos, progreso, {
     anchoLinea: 7 * ratioPixeles,
     colorTrazo: "#00ff4c",
     colorBrillo: "rgba(0,255,76,.45)",
-    blurBrillo: 16 * ratioPixeles,
+    blurBrillo: 10 * ratioPixeles,
   });
 
   dibujarTronco(
@@ -798,11 +835,6 @@ function bucle(tiempo) {
     altoTroncoCss,
     progresoTronco
   );
-
-  // Punto brillante solo mientras se dibuja.
-  if (progreso < 1) {
-    dibujarLapizBrillante(lapiz.lapizX, lapiz.lapizY);
-  }
 
   if (estadoEstrella && estadoEstrella.enFrente) {
     dibujarEstadoEstrellaFugaz(estadoEstrella);
@@ -851,10 +883,9 @@ function bucle(tiempo) {
   contexto.textAlign = "center";
   contexto.textBaseline = "top";
   contexto.shadowColor = "rgba(255,210,74,.6)";
-  contexto.shadowBlur = 18 * ratioPixeles;
+  contexto.shadowBlur = 12 * ratioPixeles;
   contexto.restore();
 
-  requestAnimationFrame(bucle);
 }
 
 requestAnimationFrame(bucle);
