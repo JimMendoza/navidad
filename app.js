@@ -49,34 +49,68 @@ let estadoTexto = {
   anchoLimite: 0,
   ratio: 0,
   tamano: 0,
-  anchoPx: 0,
+  lineas: [],
+  altoLinea: 0,
 };
 
-function calcularTextoResponsivo(texto, tamBaseCss, anchoMaxCss) {
+function calcularLineasTexto(texto, tamBaseCss, anchoMaxCss) {
   const necesita =
     texto !== estadoTexto.valor ||
     anchoMaxCss !== estadoTexto.anchoLimite ||
-    ratioPixeles !== estadoTexto.ratio;
+    ratioPixeles !== estadoTexto.ratio ||
+    tamBaseCss !== estadoTexto.tamano;
 
   if (!necesita) return estadoTexto;
 
-  let tam = tamBaseCss;
-  const tamMin = 20;
-  let anchoPx = 0;
+  const tam = tamBaseCss;
+  const palabras = texto.split(/\s+/).filter(Boolean);
+  const lineas = [];
+  let lineaActual = "";
+  const maxAnchoPx = anchoMaxCss * ratioPixeles;
 
-  while (tam >= tamMin) {
-    contexto.font = `700 ${tam * ratioPixeles}px "Georgia", "Times New Roman", serif`;
-    anchoPx = contexto.measureText(texto).width;
-    if (anchoPx <= anchoMaxCss * ratioPixeles) break;
-    tam -= 2;
+  contexto.font = `700 ${
+    tam * ratioPixeles
+  }px "Georgia", "Times New Roman", serif`;
+  const partirPalabra = (palabra) => {
+    let trozo = "";
+    for (const caracter of palabra) {
+      const candidata = trozo + caracter;
+      if (contexto.measureText(candidata).width <= maxAnchoPx || !trozo) {
+        trozo = candidata;
+      } else {
+        lineas.push(trozo);
+        trozo = caracter;
+      }
+    }
+    return trozo;
+  };
+
+  for (const palabra of palabras) {
+    const candidata = lineaActual ? `${lineaActual} ${palabra}` : palabra;
+    if (contexto.measureText(candidata).width <= maxAnchoPx || !lineaActual) {
+      lineaActual = candidata;
+      continue;
+    }
+
+    lineas.push(lineaActual);
+    lineaActual = "";
+
+    if (contexto.measureText(palabra).width > maxAnchoPx) {
+      lineaActual = partirPalabra(palabra);
+    } else {
+      lineaActual = palabra;
+    }
   }
+  if (lineaActual) lineas.push(lineaActual);
+  if (!lineas.length) lineas.push(texto);
 
   estadoTexto = {
     valor: texto,
     anchoLimite: anchoMaxCss,
     ratio: ratioPixeles,
     tamano: tam,
-    anchoPx,
+    lineas,
+    altoLinea: tam * 1.1,
   };
 
   return estadoTexto;
@@ -923,27 +957,19 @@ function bucle(tiempo) {
   contexto.save();
   const tamanoBaseCss = Math.min(64, Math.max(28, innerWidth * 0.055));
   const anchoMaxTextoCss = innerWidth * 0.9;
-  const infoTexto = calcularTextoResponsivo(
+  const infoTexto = calcularLineasTexto(
     textoNavidadFinal,
     tamanoBaseCss,
     anchoMaxTextoCss
   );
   const tamanoTextoCss = infoTexto.tamano;
+  const altoTextoCss = infoTexto.lineas.length * infoTexto.altoLinea;
+  const separacionTextoCss = tamanoTextoCss * 0.35;
   const yTextoCss = Math.min(
-    innerHeight - tamanoTextoCss * 1.3,
-    yBaseCss + altoArbolCss * 0.1
+    innerHeight - altoTextoCss - tamanoTextoCss * 0.2,
+    yBaseCss + altoArbolCss * 0.1 + separacionTextoCss
   );
   const xTexto = centroX * ratioPixeles;
-  const yTexto = yTextoCss * ratioPixeles;
-  const gradienteTexto = contexto.createLinearGradient(
-    xTexto,
-    yTexto,
-    xTexto,
-    yTexto + tamanoTextoCss * ratioPixeles
-  );
-  gradienteTexto.addColorStop(0, "#fff4d1");
-  gradienteTexto.addColorStop(0.5, "#ffd369");
-  gradienteTexto.addColorStop(1, "#ffe9b3");
 
   contexto.font = `700 ${
     tamanoTextoCss * ratioPixeles
@@ -951,23 +977,36 @@ function bucle(tiempo) {
   contexto.textAlign = "center";
   contexto.textBaseline = "top";
 
-  // Brillo suave de fondo.
-  contexto.globalAlpha = 0.6;
-  contexto.fillStyle = gradienteTexto;
-  contexto.shadowColor = "rgba(255, 200, 80, .9)";
-  contexto.shadowBlur = 26 * ratioPixeles * factorSombra;
-  contexto.fillText(textoNavidadFinal, xTexto, yTexto);
+  for (let i = 0; i < infoTexto.lineas.length; i++) {
+    const yLineaCss = yTextoCss + i * infoTexto.altoLinea;
+    const yLinea = yLineaCss * ratioPixeles;
+    const gradienteTexto = contexto.createLinearGradient(
+      xTexto,
+      yLinea,
+      xTexto,
+      yLinea + tamanoTextoCss * ratioPixeles
+    );
+    gradienteTexto.addColorStop(0, "#fff4d1");
+    gradienteTexto.addColorStop(0.5, "#ffd369");
+    gradienteTexto.addColorStop(1, "#ffe9b3");
 
-  // Texto principal con borde sutil.
-  contexto.globalAlpha = 1;
-  contexto.shadowBlur = 14 * ratioPixeles * factorSombra;
-  contexto.fillText(textoNavidadFinal, xTexto, yTexto);
-  contexto.shadowBlur = 0;
-  contexto.lineWidth = 2 * ratioPixeles;
-  contexto.strokeStyle = "rgba(120, 70, 10, .7)";
-  contexto.strokeText(textoNavidadFinal, xTexto, yTexto);
+    // Brillo suave de fondo.
+    contexto.globalAlpha = 0.6;
+    contexto.fillStyle = gradienteTexto;
+    contexto.shadowColor = "rgba(255, 200, 80, .9)";
+    contexto.shadowBlur = 26 * ratioPixeles * factorSombra;
+    contexto.fillText(infoTexto.lineas[i], xTexto, yLinea);
+
+    // Texto principal con borde sutil.
+    contexto.globalAlpha = 1;
+    contexto.shadowBlur = 14 * ratioPixeles * factorSombra;
+    contexto.fillText(infoTexto.lineas[i], xTexto, yLinea);
+    contexto.shadowBlur = 0;
+    contexto.lineWidth = 2 * ratioPixeles;
+    contexto.strokeStyle = "rgba(120, 70, 10, .7)";
+    contexto.strokeText(infoTexto.lineas[i], xTexto, yLinea);
+  }
   contexto.restore();
-
 }
 
 requestAnimationFrame(bucle);
