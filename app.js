@@ -1,6 +1,6 @@
 const lienzo = document.getElementById("c");
 const contexto = lienzo.getContext("2d");
-const textoNavidadBase = "¡Feliz Navidad!";
+const textoNavidadBase = "Feliz Navidad!";
 
 function obtenerNombreDesdeURL() {
   const params = new URLSearchParams(location.search);
@@ -33,14 +33,16 @@ function obtenerNombreDesdeURL() {
   return nombre;
 }
 
+const nombreURL = obtenerNombreDesdeURL();
+const textoNavidadFinal = nombreURL
+  ? `${textoNavidadBase} ${nombreURL}`
+  : textoNavidadBase;
 const caption = document.querySelector(".caption");
 if (caption) {
-  const nombreURL = obtenerNombreDesdeURL();
-  caption.textContent = nombreURL
-    ? `${textoNavidadBase} ${nombreURL}`
-    : textoNavidadBase;
-  document.title = nombreURL ? `Feliz Navidad ${nombreURL}` : "Feliz Navidad";
+  caption.textContent = textoNavidadFinal;
+  caption.style.display = "none";
 }
+document.title = nombreURL ? `Feliz Navidad ${nombreURL}` : "Feliz Navidad";
 
 const CANTIDAD_NIEVE_BASE = 100;
 const PERFIL_CALIDAD_ALTO = {
@@ -510,73 +512,6 @@ function dibujarEstrella(xCentro, yCentro, radio) {
   contexto.restore();
 }
 
-/* ------------------ Regalos ------------------ */
-function rectanguloRedondeado(x, y, ancho, alto, radio) {
-  const radioReal = Math.min(radio, ancho / 2, alto / 2);
-  contexto.beginPath();
-  contexto.moveTo(x + radioReal, y);
-  contexto.arcTo(x + ancho, y, x + ancho, y + alto, radioReal);
-  contexto.arcTo(x + ancho, y + alto, x, y + alto, radioReal);
-  contexto.arcTo(x, y + alto, x, y, radioReal);
-  contexto.arcTo(x, y, x + ancho, y, radioReal);
-  contexto.closePath();
-}
-
-function dibujarRegalo(x, y, ancho, alto, color) {
-  // Caja base.
-  contexto.save();
-  contexto.fillStyle = color;
-  contexto.shadowColor = "rgba(0,0,0,.35)";
-  contexto.shadowBlur = 6 * ratioPixeles * factorSombra;
-  rectanguloRedondeado(x, y, ancho, alto, 10 * ratioPixeles);
-  contexto.fill();
-
-  // Listones.
-  contexto.shadowBlur = 0;
-  contexto.fillStyle = "rgba(255,255,255,.85)";
-  rectanguloRedondeado(
-    x + ancho * 0.45,
-    y,
-    ancho * 0.12,
-    alto,
-    6 * ratioPixeles
-  );
-  contexto.fill();
-  rectanguloRedondeado(
-    x,
-    y + alto * 0.45,
-    ancho,
-    alto * 0.12,
-    6 * ratioPixeles
-  );
-  contexto.fill();
-
-  // Lazo.
-  contexto.fillStyle = "rgba(255,255,255,.9)";
-  contexto.beginPath();
-  contexto.ellipse(
-    x + ancho * 0.48,
-    y - alto * 0.06,
-    ancho * 0.12,
-    alto * 0.1,
-    0,
-    0,
-    Math.PI * 2
-  );
-  contexto.ellipse(
-    x + ancho * 0.62,
-    y - alto * 0.06,
-    ancho * 0.12,
-    alto * 0.1,
-    0,
-    0,
-    Math.PI * 2
-  );
-  contexto.fill();
-
-  contexto.restore();
-}
-
 /* ------------------ Click para reiniciar el dibujo ------------------ */
 let inicioAnimacion = performance.now();
 let cajaArbol = null;
@@ -946,50 +881,46 @@ function bucle(tiempo) {
     dibujarEstadoEstrellaFugaz(estadoEstrella);
   }
 
-  // Regalos al final.
-  const alphaRegalos = Math.max(0, (progreso - 0.7) / 0.3);
+  // Texto final debajo del arbol.
   contexto.save();
-  contexto.globalAlpha = alphaRegalos;
-
-  const yBase = (yArribaCss + altoArbolCss * 1.1) * ratioPixeles;
-  const anchoRegalo = 70 * ratioPixeles;
-  const altoRegalo = 55 * ratioPixeles;
-  const separacionRegalos = 12 * ratioPixeles;
-  const anchoTotalRegalos = anchoRegalo * 3 + separacionRegalos * 2;
-  const xInicioRegalos = centroX * ratioPixeles - anchoTotalRegalos / 2;
-
-  dibujarRegalo(
-    xInicioRegalos,
-    yBase + 22 * ratioPixeles,
-    anchoRegalo,
-    altoRegalo,
-    "#ff4d6d"
+  const tamanoTextoCss = Math.min(64, Math.max(28, innerWidth * 0.055));
+  const yTextoCss = Math.min(
+    innerHeight - tamanoTextoCss * 1.3,
+    yBaseCss + altoArbolCss * 0.1
   );
-  dibujarRegalo(
-    xInicioRegalos + anchoRegalo + separacionRegalos,
-    yBase + 30 * ratioPixeles,
-    anchoRegalo,
-    altoRegalo,
-    "#4dd9ff"
+  const xTexto = centroX * ratioPixeles;
+  const yTexto = yTextoCss * ratioPixeles;
+  const gradienteTexto = contexto.createLinearGradient(
+    xTexto,
+    yTexto,
+    xTexto,
+    yTexto + tamanoTextoCss * ratioPixeles
   );
-  dibujarRegalo(
-    xInicioRegalos + (anchoRegalo + separacionRegalos) * 2,
-    yBase + 18 * ratioPixeles,
-    anchoRegalo,
-    altoRegalo,
-    "#7cff4d"
-  );
+  gradienteTexto.addColorStop(0, "#fff4d1");
+  gradienteTexto.addColorStop(0.5, "#ffd369");
+  gradienteTexto.addColorStop(1, "#ffe9b3");
 
-  // Texto final.
-  const tamanoTextoCss = Math.min(38, Math.max(22, innerWidth * 0.035));
-  contexto.font = `600 ${
+  contexto.font = `700 ${
     tamanoTextoCss * ratioPixeles
   }px "Georgia", "Times New Roman", serif`;
-  contexto.fillStyle = "#ffe9b3";
   contexto.textAlign = "center";
   contexto.textBaseline = "top";
-  contexto.shadowColor = "rgba(255,210,74,.6)";
-  contexto.shadowBlur = 12 * ratioPixeles * factorSombra;
+
+  // Brillo suave de fondo.
+  contexto.globalAlpha = 0.6;
+  contexto.fillStyle = gradienteTexto;
+  contexto.shadowColor = "rgba(255, 200, 80, .9)";
+  contexto.shadowBlur = 26 * ratioPixeles * factorSombra;
+  contexto.fillText(textoNavidadFinal, xTexto, yTexto);
+
+  // Texto principal con borde sutil.
+  contexto.globalAlpha = 1;
+  contexto.shadowBlur = 14 * ratioPixeles * factorSombra;
+  contexto.fillText(textoNavidadFinal, xTexto, yTexto);
+  contexto.shadowBlur = 0;
+  contexto.lineWidth = 2 * ratioPixeles;
+  contexto.strokeStyle = "rgba(120, 70, 10, .7)";
+  contexto.strokeText(textoNavidadFinal, xTexto, yTexto);
   contexto.restore();
 
 }
